@@ -8,18 +8,20 @@ struct CompetitionPostgresRepository: CompetitionRepository {
     /// Create Competitions table
     func createTable() async throws {
         do {
-            
+            logger.info("Creating competitions table")
             try await self.client.query("""
                 CREATE TABLE IF NOT EXISTS competitions (
                     "id" uuid PRIMARY KEY,
                     "name" text NOT NULL,
                     "description" text,
+                    "date" timestamp NOT NULL,
                     "city" text NOT NULL,
                     "country" text NOT NULL
                 )
                 """,
                                         logger: logger
             )
+            logger.info( "Competitions table successfully created")
         } catch {
             logger.error("PSQLError in createTable: \(String(reflecting: error))")
             throw error
@@ -28,60 +30,87 @@ struct CompetitionPostgresRepository: CompetitionRepository {
     
     func create(name: String, description: String?, date: Date, city: String, country: String) async throws -> Competition {
         let id = UUID()
-        try await self.client.query("INSERT into competitions (id, name, description, city, country) VALUES (\(id), '\(name)', '\(description ?? "")', '\(city)', '\(country)') ", logger: logger)
+        try await self.client.query("INSERT into competitions (id, name, description, date, city, country) VALUES (\(id), \(name), \(description ?? ""), \(date), \(city), \(country));", logger: logger)
         return Competition(id: id, name: name, description: description, date: date, city: city, country: country)
     }
     
     func get(id: UUID) async throws -> Competition? {
         let stream = try await self.client.query("""
-                    SELECT "id", "name", "description", "city", "country" FROM competitions WHERE "id" = \(id)
+                    SELECT "id", "name", "description", "date", "city", "country" FROM competitions WHERE "id" = \(id)
                     """, logger: logger
         )
-        for try await (id, name, description, city, country) in stream.decode((UUID, String, String?, String, String).self, context: .default) {
-            return Competition(id: id, name: name, description: description, date: Date(), city: city, country: country)
+        for try await (id, name, description, date, city, country) in stream.decode((UUID, String, String?, Date, String, String).self, context: .default) {
+            return Competition(id: id, name: name, description: description, date: date, city: city, country: country)
         }
         return nil
     }
     
     func list() async throws -> [Competition] {
-        let stream = try await self.client.query("""
-            SELECT "id", "name", "description", "city", "country" FROM competitions
+        do {
+            
+            let stream = try await self.client.query("""
+            SELECT "id", "name", "description", "date", "city", "country" FROM competitions
             """, logger: logger)
-        var competitions: [Competition] = []
-        for try await (id, name, description, city, country) in stream.decode((UUID, String, String?, String, String).self, context: .default) {
-            let competition = Competition(id: id, name: name, description: description, date: Date(), city: city, country: country)
-            competitions.append(competition)
+            var competitions: [Competition] = []
+            for try await (id, name, description, date, city, country) in stream.decode((UUID, String, String?, Date, String, String).self, context: .default) {
+                let competition = Competition(id: id, name: name, description: description, date: date, city: city, country: country)
+                competitions.append(competition)
+            }
+            return competitions
+        } catch {
+            logger.error("Something went wrong \(String(reflecting: error))")
+            throw error
         }
-        return competitions
     }
     
     func update(id: UUID, name: String?, description: String?, date: Date?, city: String?, country: String?) async throws -> Competition? {
         var updateFields: [String] = []
+        var bindings = PostgresBindings()
+        var bindingIndex = 1
         
         if let name {
-            updateFields.append("name = \(name)")
+            updateFields.append("name = $\(bindingIndex)")
+            bindings.append(name)
+            bindingIndex += 1
         }
         if let description {
-            updateFields.append("description = \(description)")
+            updateFields.append("description = $\(bindingIndex)")
+            bindings.append(description)
+            bindingIndex += 1
         }
         if let date {
-            updateFields.append("date = \(date)")
+            updateFields.append("date = $\(bindingIndex)")
+            bindings.append(date)
+            bindingIndex += 1
         }
         if let city {
-            updateFields.append("city = \(city)")
+            updateFields.append("city = $\(bindingIndex)")
+            bindings.append(city)
+            bindingIndex += 1
         }
         if let country {
-            updateFields.append("country = \(country)")
+            updateFields.append("country = $\(bindingIndex)")
+            bindings.append(country)
+            bindingIndex += 1
         }
         
         // Only execute update if there are fields to update
         if !updateFields.isEmpty {
-            let updateQuery: PostgresQuery = """
-                        UPDATE competitions 
-                        SET \(updateFields.joined(separator: ", ")) 
-                        WHERE id = \(id)
-                        """
-            _ = try await self.client.query(updateQuery, logger: self.logger)
+            logger.info("Updating competition with id \(id)")
+            let updateSQL = """
+                UPDATE competitions 
+                SET \(updateFields.joined(separator: ", ")) 
+                WHERE id = $\(bindingIndex)
+                """
+            bindings.append(id)
+            
+            do {
+                let unsafeQuery = PostgresQuery(unsafeSQL: updateSQL, binds: bindings)
+                _ = try await self.client.query(unsafeQuery, logger: self.logger)
+            } catch {
+                logger.error("Something went wrong \(String(reflecting: error))")
+                return nil
+            }
         }
         let stream = try await self.client.query(
                     """

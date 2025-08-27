@@ -40,9 +40,9 @@ struct CompetitionController<Repository: CompetitionRepository> {
     struct UpdateRequest: Decodable {
         let name: String?
         let description: String?
-        let date: Date
-        let city: String
-        let country: String
+        let date: Date?
+        let city: String?
+        let country: String?
     }
     
     @Sendable func update(request: Request, context: some RequestContext) async throws -> Competition? {
