@@ -19,12 +19,12 @@ typealias AppRequestContext = BasicRequestContext
 ///  Build application
 /// - Parameter arguments: application arguments
 public func buildApplication(_ arguments: some AppArguments) async throws -> some ApplicationProtocol {
-    let environment = Environment()
+    let env = try await Environment.dotEnv()
     let logger = {
         var logger = Logger(label: "voimadb-api")
         logger.logLevel =
         arguments.logLevel ??
-        environment.get("LOG_LEVEL").flatMap { Logger.Level(rawValue: $0) } ??
+        env.get("LOG_LEVEL").flatMap { Logger.Level(rawValue: $0) } ??
             .info
         return logger
     }()
@@ -32,7 +32,14 @@ public func buildApplication(_ arguments: some AppArguments) async throws -> som
     let router: Router<AppRequestContext>
     if !arguments.inMemoryTesting {
         let client = PostgresClient(
-            configuration: .init(host: "localhost", username: "postgres", password: "postgres", database: "postgres", tls: .disable),
+            configuration: .init(
+                host: env.get("POSTGRES_HOST") ?? "localhost",
+                port: env.get("POSTGRES_PORT").flatMap(Int.init) ?? 5432,
+                username: env.get("POSTGRES_USERNAME") ?? "postgres",
+                password: env.get("POSTGRES_PASSWORD") ?? "postgres",
+                database: env.get("POSTGRES_DATABASE") ?? "postgres",
+                tls: .disable
+            ),
             backgroundLogger: logger
         )
         let repository = CompetitionPostgresRepository(client: client, logger: logger)

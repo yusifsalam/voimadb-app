@@ -6,5 +6,4 @@
 /*.xcodeproj
 xcuserdata/
 /.vscode/*
-.env.*
 .env
