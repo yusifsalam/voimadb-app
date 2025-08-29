@@ -11,24 +11,30 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
+        .package(url: "https://github.com/hummingbird-project/hummingbird-auth.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.27.0"),
+        .package(url: "https://github.com/hummingbird-project/hummingbird-postgres.git", from: "1.0.0-rc.1"),
     ],
     targets: [
         .executableTarget(name: "App",
-            dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                .product(name: "Hummingbird", package: "hummingbird"),
-                .product(name: "PostgresNIO", package: "postgres-nio"),
-            ],
-            path: "Sources/App"
-        ),
+                          dependencies: [
+                            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                            .product(name: "Hummingbird", package: "hummingbird"),
+                            .product(name: "PostgresNIO", package: "postgres-nio"),
+                            .product(name: "HummingbirdBcrypt", package: "hummingbird-auth"),
+                            .product(name: "HummingbirdAuth", package: "hummingbird-auth"),
+                            .product(name: "HummingbirdBasicAuth", package: "hummingbird-auth"),
+                            .product(name: "HummingbirdPostgres", package: "hummingbird-postgres"),
+                          ],
+                          path: "Sources/App"
+                         ),
         .testTarget(name: "AppTests",
-            dependencies: [
-                .byName(name: "App"),
-                .product(name: "HummingbirdTesting", package: "hummingbird")
-            ],
-            path: "Tests/AppTests"
-        )
+                    dependencies: [
+                        .byName(name: "App"),
+                        .product(name: "HummingbirdTesting", package: "hummingbird")
+                    ],
+                    path: "Tests/AppTests"
+                   )
     ]
 )

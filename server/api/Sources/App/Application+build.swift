@@ -1,4 +1,8 @@
 import Hummingbird
+import Foundation
+import HummingbirdAuth
+import HummingbirdPostgres
+import PostgresMigrations
 import PostgresNIO
 import Logging
 
@@ -14,7 +18,7 @@ public protocol AppArguments {
 }
 
 // Request context used by application
-typealias AppRequestContext = BasicRequestContext
+typealias AppRequestContext = BasicSessionRequestContext<UUID, User>
 
 ///  Build application
 /// - Parameter arguments: application arguments
@@ -28,58 +32,47 @@ public func buildApplication(_ arguments: some AppArguments) async throws -> som
             .info
         return logger
     }()
-    var postgresRepository: CompetitionPostgresRepository?
-    let router: Router<AppRequestContext>
-    if !arguments.inMemoryTesting {
-        let client = PostgresClient(
-            configuration: .init(
-                host: env.get("POSTGRES_HOST") ?? "localhost",
-                port: env.get("POSTGRES_PORT").flatMap(Int.init) ?? 5432,
-                username: env.get("POSTGRES_USERNAME") ?? "postgres",
-                password: env.get("POSTGRES_PASSWORD") ?? "postgres",
-                database: env.get("POSTGRES_DATABASE") ?? "postgres",
-                tls: .disable
-            ),
-            backgroundLogger: logger
-        )
-        let repository = CompetitionPostgresRepository(client: client, logger: logger)
-        postgresRepository = repository
-        router = buildRouter(repository)
-        
-    } else {
-        router = buildRouter(CompetitionMemoryRepository())
-    }
+    
+    
+    let pgClient = PostgresClient(
+        configuration: .init(
+            host: env.get("POSTGRES_HOST") ?? "localhost",
+            port: env.get("POSTGRES_PORT").flatMap(Int.init) ?? 5432,
+            username: env.get("POSTGRES_USERNAME") ?? "postgres",
+            password: env.get("POSTGRES_PASSWORD") ?? "postgres",
+            database: env.get("POSTGRES_DATABASE") ?? "postgres",
+            tls: .disable
+        ),
+        backgroundLogger: logger
+    )
+    let compRepo = CompetitionPostgresRepository(client: pgClient, logger: logger)
+    let userRepo = UserPostgresRepository(client: pgClient, logger: logger)
+    
+    let migrations = DatabaseMigrations()
+    await migrations.add(CreateUsersTableMigration())
+    await migrations.add(CreateCompetitionsTableMigration())
+    let persist = await PostgresPersistDriver(
+        client: pgClient,
+        migrations: migrations,
+        logger: logger
+    )
+    
+    let router = buildRouter(persist: persist, competitionRepository: compRepo, userRepository: userRepo)
+    
+    
+    
     var app = Application(
         router: router,
         configuration: .init(
             address: .hostname(arguments.hostname, port: arguments.port),
             serverName: "voimadb-api"
         ),
+        services: [pgClient, persist],
         logger: logger
     )
-    if let postgresRepository {
-        app.addServices(postgresRepository.client)
-        app.beforeServerStarts {
-            try await postgresRepository.createTable()
-        }
+    app.beforeServerStarts {
+        try await migrations.apply(client: pgClient, logger: logger, dryRun: false)
     }
     return app
 }
 
-/// Build router
-func buildRouter(_ repository: some CompetitionRepository) -> Router<AppRequestContext> {
-    let router = Router(context: AppRequestContext.self)
-    // Add middleware
-    router.addMiddleware {
-        // logging middleware
-        LogRequestsMiddleware(.info)
-    }
-    router.get("/health") { _, _ -> HTTPResponse.Status in
-        return .ok
-    }
-    router.get("/") { _,_ in
-        return "Hello!"
-    }
-    router.addRoutes(CompetitionController(repository: repository).endpoints, atPath: "/competitions")
-    return router
-}

@@ -1,11 +1,17 @@
 import Hummingbird
+import HummingbirdAuth
 import Foundation
 
 struct CompetitionController<Repository: CompetitionRepository> {
+    typealias Context = AppRequestContext
     let repository: Repository
+    let authRepo: UserRepository
     
     var endpoints: RouteCollection<AppRequestContext> {
         return RouteCollection(context: AppRequestContext.self)
+            .add(middleware: SessionAuthenticator { id, context in
+                try await authRepo.findByID(id)
+            })
             .get(":id", use: get)
             .get(use: list)
             .post(use: create)
@@ -31,7 +37,8 @@ struct CompetitionController<Repository: CompetitionRepository> {
         let country: String
     }
     
-    @Sendable func create(request: Request, context: some RequestContext) async throws -> EditedResponse<Competition> {
+    @Sendable func create(request: Request, context: Context) async throws -> EditedResponse<Competition> {
+        _ = try context.requireIdentity()
         let request = try await request.decode(as: CreateRequest.self, context: context)
         let competition =  try await self.repository.create(name: request.name, description: request.description, date: request.date, city: request.city, country: request.country)
         return EditedResponse(status: .created, response: competition)
@@ -45,7 +52,8 @@ struct CompetitionController<Repository: CompetitionRepository> {
         let country: String?
     }
     
-    @Sendable func update(request: Request, context: some RequestContext) async throws -> Competition? {
+    @Sendable func update(request: Request, context: Context) async throws -> Competition? {
+        _ = try context.requireIdentity()
         let id = try context.parameters.require("id", as: Int.self)
         let request = try await request.decode(as: UpdateRequest.self, context: context)
         guard let competition = try await self.repository.update(
@@ -61,7 +69,8 @@ struct CompetitionController<Repository: CompetitionRepository> {
         return competition
     }
     
-    @Sendable func delete(request: Request, context: some RequestContext) async throws -> HTTPResponse.Status {
+    @Sendable func delete(request: Request, context: Context) async throws -> HTTPResponse.Status {
+        _ = try context.requireIdentity()
         let id = try context.parameters.require("id", as: Int.self)
         if try await self.repository.delete(id: id) {
             return .ok
@@ -70,7 +79,8 @@ struct CompetitionController<Repository: CompetitionRepository> {
         }
     }
     
-    @Sendable func deleteAll(request: Request, context: some RequestContext) async throws -> HTTPResponse.Status {
+    @Sendable func deleteAll(request: Request, context: Context) async throws -> HTTPResponse.Status {
+        _ = try context.requireIdentity()
         try await self.repository.deleteAll()
         return .ok
     }

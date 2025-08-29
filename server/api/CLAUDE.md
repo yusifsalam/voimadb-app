@@ -42,25 +42,36 @@ POSTGRES_PORT=5432
 
 ## Architecture Overview
 
-This is a **VoimaDB Competition Management API** built with Swift/Hummingbird following clean architecture principles.
+This is a **VoimaDB Competition Management API** built with Swift/Hummingbird 2.15.0 following clean architecture principles with PostgreSQL session management and user authentication.
 
 ### Core Patterns
 
 **Repository Pattern**: Clean separation between data access and business logic
-- `CompetitionRepository` protocol defines the contract
-- `CompetitionMemoryRepository` for testing/development
-- `CompetitionPostgresRepository` for production
-- Repositories are injected into controllers via constructor dependency injection
+- `CompetitionRepository` and `UserRepository` protocols define contracts
+- Memory repositories (`CompetitionMemoryRepository`, `UserMemoryRepository`) for testing/development
+- PostgreSQL repositories (`CompetitionPostgresRepository`, `UserPostgresRepository`) for production
+- Repositories are injected into controllers and middleware via constructor dependency injection
 
 **Dependency Injection**: Environment-based repository selection
 ```swift
-// Application builder chooses repository based on arguments
+// Application builder chooses repositories based on arguments
 if !arguments.inMemoryTesting {
-    let repository = CompetitionPostgresRepository(client: client, logger: logger)
+    let competitionRepository = CompetitionPostgresRepository(client: client, logger: logger)
+    let userRepository = UserPostgresRepository(client: client, logger: logger)
 } else {
-    let repository = CompetitionMemoryRepository()
+    let competitionRepository = CompetitionMemoryRepository()
+    let userRepository = UserMemoryRepository()
 }
 ```
+
+**Authentication & Session Management**: Built on Hummingbird-Auth 2.0
+- Uses bcrypt for secure password hashing with NIOThreadPool for non-blocking operations
+- PostgreSQL-backed session persistence using `PostgresPersistDriver`
+- Database migrations using `PostgresMigrations` for schema management
+- Dual authentication system:
+  - `BasicAuthenticator` for email/password login
+  - `SessionAuthenticator` for session-based authenticated routes
+- Context-based authentication with `BasicSessionRequestContext<UUID, User>`
 
 **Controller Structure**: RESTful controllers with async/await
 - Controllers receive repository dependencies 
@@ -69,13 +80,15 @@ if !arguments.inMemoryTesting {
 
 ### Database Architecture
 
-**Schema Management**: Automatic table creation on startup
-- No formal migration system - uses `CREATE TABLE IF NOT EXISTS`
-- Schema defined in `CompetitionPostgresRepository.createTable()`
-- Database initialized in `beforeServerStarts` hook
+**Schema Management**: PostgreSQL migrations with `hummingbird-postgres`
+- Formal migration system using `DatabaseMigrations` and `PostgresMigrations`
+- Migrations defined in `Sources/App/Migrations/` directory
+- Auto-applied during application startup via `beforeServerStarts` hook
+- Session storage integrated with `PostgresPersistDriver`
 
 **Current Schema**:
 ```sql
+-- Competitions table
 CREATE TABLE competitions (
     "id" SERIAL PRIMARY KEY,
     "name" text NOT NULL,
@@ -83,25 +96,54 @@ CREATE TABLE competitions (
     "date" timestamp NOT NULL,
     "city" text NOT NULL,
     "country" text NOT NULL
-)
+);
+
+-- Users table  
+CREATE TABLE users (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL UNIQUE,
+    "password_hash" TEXT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+);
 ```
 
 ### Project Structure
 ```
 Sources/App/
-├── App.swift                          # CLI entry point
-├── Application+build.swift            # App configuration & DI setup
+├── App.swift                               # CLI entry point
+├── Application+build.swift                 # App configuration & DI setup
 ├── Controllers/
-│   └── CompetitionController.swift    # REST endpoints
+│   ├── AuthController.swift               # User auth endpoints (register/login/me)
+│   └── CompetitionController.swift         # Competition REST endpoints
+├── Migrations/
+│   ├── CreateCompetitionsMigration.swift   # Competition table migration
+│   └── CreateUserMigration.swift           # User table migration
+├── Models/
+│   └── User.swift                          # User domain model with PasswordAuthenticatable
 └── Repositories/
-    ├── Competition.swift              # Domain model
-    ├── CompetitionRepository.swift    # Repository protocol
-    ├── CompetitionMemoryRepository.swift    # In-memory implementation
-    └── CompetitionPostgresRepository.swift  # PostgreSQL implementation
+    ├── Competition.swift                   # Competition domain model
+    ├── CompetitionRepository.swift         # Competition repository protocol
+    ├── CompetitionMemoryRepository.swift   # Competition in-memory implementation
+    ├── CompetitionPostgresRepository.swift # Competition PostgreSQL implementation
+    ├── UserRepository.swift               # User repository protocol
+    ├── UserMemoryRepository.swift          # User in-memory implementation
+    └── UserPostgresRepository.swift        # User PostgreSQL implementation
 ```
 
 ### API Routes
+
+**Public Routes**:
 - `GET /health` - Health check
+- `POST /auth/register` - Register new user (requires JSON: `{name, email, password}`)
+
+**Authentication Routes**:
+- `POST /auth/login` - Login with Basic auth, creates session
+
+**Protected Routes** (require session authentication):
+- `GET /auth/me` - Get current authenticated user info
+
+**Competition Routes**:
 - `GET /competitions` - List all competitions  
 - `GET /competitions/:id` - Get specific competition (Int ID)
 - `POST /competitions` - Create competition
@@ -125,7 +167,7 @@ Sources/App/
    - Create controller with dependency injection
    - Register routes in `Application+build.swift`
 
-2. **Database Changes**: Update `CompetitionPostgresRepository.createTable()` method
+2. **Database Changes**: Update appropriate `PostgresRepository.createTable()` method
 
 3. **Repository Implementation**: Always implement protocol first, then concrete implementations
 
@@ -135,7 +177,37 @@ Sources/App/
 - Follow RESTful conventions for new endpoints
 - Use proper HTTP status codes and error handling
 - All repositories must be `Sendable` for Swift concurrency
-- Integer IDs (not UUIDs) for primary keys
+- Integer IDs for competitions, UUID IDs for users
+- Use Hummingbird-Auth for authentication patterns
+- Never store plaintext passwords - always use bcrypt hashing
+
+### Authentication Usage
+
+**User Registration Flow**:
+```bash
+# Register new user
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name": "alice", "email": "alice@example.com", "password": "secretpassword"}'
+```
+
+**Login & Session Flow**:
+```bash
+# Login with basic auth (creates session)
+curl -X POST http://localhost:8080/auth/login \
+  -u alice@example.com:secretpassword \
+  -c cookies.txt
+
+# Use session cookie for authenticated requests
+curl -X GET http://localhost:8080/auth/me \
+  -b cookies.txt
+```
+
+**Authentication Components**:
+- `SessionMiddleware` with `PostgresPersistDriver` - Manages session persistence in database
+- `BasicAuthenticator` - Validates email/password credentials via closure
+- `SessionAuthenticator` - Validates session cookies and loads user via closure
+- `PasswordAuthenticatable` conformance on User model for bcrypt integration
 
 ### Environment Configuration
 - Environment variables loaded via `Environment.dotEnv()`
