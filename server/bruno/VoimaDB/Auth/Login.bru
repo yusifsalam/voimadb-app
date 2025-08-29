@@ -1,0 +1,20 @@
+meta {
+  name: Login
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8080/auth/login
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: test@example.com
+  password: 1234
+}
+
+settings {
+  encodeUrl: true
+}
