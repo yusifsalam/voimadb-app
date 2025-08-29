@@ -15,7 +15,7 @@ struct CompetitionController<Repository: CompetitionRepository> {
     }
     
     @Sendable func get(request: Request, context: some RequestContext) async throws -> Competition? {
-        let id = try context.parameters.require("id", as: UUID.self)
+        let id = try context.parameters.require("id", as: Int.self)
         return try await self.repository.get(id: id)
     }
     
@@ -46,7 +46,7 @@ struct CompetitionController<Repository: CompetitionRepository> {
     }
     
     @Sendable func update(request: Request, context: some RequestContext) async throws -> Competition? {
-        let id = try context.parameters.require("id", as: UUID.self)
+        let id = try context.parameters.require("id", as: Int.self)
         let request = try await request.decode(as: UpdateRequest.self, context: context)
         guard let competition = try await self.repository.update(
             id: id,
@@ -62,7 +62,7 @@ struct CompetitionController<Repository: CompetitionRepository> {
     }
     
     @Sendable func delete(request: Request, context: some RequestContext) async throws -> HTTPResponse.Status {
-        let id = try context.parameters.require("id", as: UUID.self)
+        let id = try context.parameters.require("id", as: Int.self)
         if try await self.repository.delete(id: id) {
             return .ok
         } else {

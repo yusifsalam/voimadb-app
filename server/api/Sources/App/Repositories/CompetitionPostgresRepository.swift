@@ -11,7 +11,7 @@ struct CompetitionPostgresRepository: CompetitionRepository {
             logger.info("Creating competitions table")
             try await self.client.query("""
                 CREATE TABLE IF NOT EXISTS competitions (
-                    "id" uuid PRIMARY KEY,
+                    "id" SERIAL PRIMARY KEY,
                     "name" text NOT NULL,
                     "description" text,
                     "date" timestamp NOT NULL,
@@ -29,17 +29,22 @@ struct CompetitionPostgresRepository: CompetitionRepository {
     }
     
     func create(name: String, description: String?, date: Date, city: String, country: String) async throws -> Competition {
-        let id = UUID()
-        try await self.client.query("INSERT into competitions (id, name, description, date, city, country) VALUES (\(id), \(name), \(description ?? ""), \(date), \(city), \(country));", logger: logger)
-        return Competition(id: id, name: name, description: description, date: date, city: city, country: country)
+        let stream = try await self.client.query("INSERT INTO competitions (name, description, date, city, country) VALUES (\(name), \(description ?? ""), \(date), \(city), \(country)) RETURNING id;", logger: logger)
+        
+        for try await id in stream.decode(Int.self, context: .default) {
+            return Competition(id: id, name: name, description: description, date: date, city: city, country: country)
+        }
+        
+        // If we reach here, no ID was returned, which indicates a failure
+        throw PostgresError.protocol("Failed to create competition: no ID returned from database")
     }
     
-    func get(id: UUID) async throws -> Competition? {
+    func get(id: Int) async throws -> Competition? {
         let stream = try await self.client.query("""
                     SELECT "id", "name", "description", "date", "city", "country" FROM competitions WHERE "id" = \(id)
                     """, logger: logger
         )
-        for try await (id, name, description, date, city, country) in stream.decode((UUID, String, String?, Date, String, String).self, context: .default) {
+        for try await (id, name, description, date, city, country) in stream.decode((Int, String, String?, Date, String, String).self, context: .default) {
             return Competition(id: id, name: name, description: description, date: date, city: city, country: country)
         }
         return nil
@@ -52,7 +57,7 @@ struct CompetitionPostgresRepository: CompetitionRepository {
             SELECT "id", "name", "description", "date", "city", "country" FROM competitions
             """, logger: logger)
             var competitions: [Competition] = []
-            for try await (id, name, description, date, city, country) in stream.decode((UUID, String, String?, Date, String, String).self, context: .default) {
+            for try await (id, name, description, date, city, country) in stream.decode((Int, String, String?, Date, String, String).self, context: .default) {
                 let competition = Competition(id: id, name: name, description: description, date: date, city: city, country: country)
                 competitions.append(competition)
             }
@@ -63,7 +68,7 @@ struct CompetitionPostgresRepository: CompetitionRepository {
         }
     }
     
-    func update(id: UUID, name: String?, description: String?, date: Date?, city: String?, country: String?) async throws -> Competition? {
+    func update(id: Int, name: String?, description: String?, date: Date?, city: String?, country: String?) async throws -> Competition? {
         var updateFields: [String] = []
         var bindings = PostgresBindings()
         var bindingIndex = 1
@@ -118,19 +123,19 @@ struct CompetitionPostgresRepository: CompetitionRepository {
                     """,
                     logger: self.logger
         )
-        for try await(id, name, description, date, city, country) in stream.decode((UUID, String, String?, Date, String, String).self, context: .default) {
+        for try await(id, name, description, date, city, country) in stream.decode((Int, String, String?, Date, String, String).self, context: .default) {
             return Competition(id: id, name: name, description: description ?? "", date: date, city: city, country: country)
         }
         return nil
     }
     
-    func delete(id: UUID) async throws -> Bool {
+    func delete(id: Int) async throws -> Bool {
         let selectStream = try await self.client.query(
             """
             SELECT "id" FROM competitions WHERE id = \(id)
             """, logger: logger)
         // if we didn't find the item with this id then return false
-        if try await selectStream.decode(UUID.self, context: .default).first(where: { _ in true }) == nil {
+        if try await selectStream.decode(Int.self, context: .default).first(where: { _ in true }) == nil {
             return false
         }
         _ = try await self.client.query("DELETE FROM competitions WHERE id = \(id);", logger: logger)

@@ -2,7 +2,7 @@ import Foundation
 import Hummingbird
 
 struct Competition {
-    var id: UUID
+    var id: Int
     var name: String
     var description: String?
     var date: Date
