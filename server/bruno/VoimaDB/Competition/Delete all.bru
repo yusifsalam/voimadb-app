@@ -1,0 +1,15 @@
+meta {
+  name: Delete all
+  type: http
+  seq: 6
+}
+
+delete {
+  url: http://localhost:8080/competitions
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

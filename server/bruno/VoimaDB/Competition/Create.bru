@@ -1,0 +1,24 @@
+meta {
+  name: Create
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8080/competitions
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Test competition 1",
+    "date": "2025-08-29T10:00:00Z",
+    "city": "Helsinki",
+    "country": "Finland"
+  }
+}
+
+settings {
+  encodeUrl: true
+}
