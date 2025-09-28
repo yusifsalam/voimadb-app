@@ -1,5 +1,5 @@
-import Vapor
 import Fluent
+import Vapor
 
 enum Sex: String, Codable {
     case male = "M"

@@ -2,7 +2,6 @@ import Fluent
 
 struct CreateResults: AsyncMigration {
     func prepare(on database: any Database) async throws {
-        
         return try await database.schema("results")
             .field("id", .int, .identifier(auto: true))
             .field("competition_id", .int, .required, .references("competitions", "id"))

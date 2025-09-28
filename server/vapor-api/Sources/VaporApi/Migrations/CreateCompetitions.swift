@@ -10,7 +10,7 @@ struct CreateCompetitions: AsyncMigration {
             .case("Raw")
             .case("SinglePly")
             .create()
-        
+
         return try await database.schema("competitions")
             .field("id", .int, .identifier(auto: true))
             .field("name", .string, .required)

@@ -11,7 +11,7 @@ struct CreateClubs: AsyncMigration {
             .field("active", .bool, .sql(.default(false)))
             .create()
     }
-    
+
     func revert(on database: any Database) async throws {
         return try await database.schema("clubs").delete()
     }
