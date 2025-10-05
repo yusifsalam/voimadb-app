@@ -20,6 +20,8 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateWeightClass())
     app.migrations.add(CreateResults())
     app.migrations.add(CreateTempResults())
+    app.migrations.add(CreateUsers())
+    app.migrations.add(CreateUserTokens())
 
     try await app.autoMigrate()
 
