@@ -122,4 +122,87 @@ func routes(_ app: Application) throws {
     tokenProtected.get("me") { req -> User in
         try req.auth.require(User.self)
     }
+
+    // Logout endpoint - revoke current token
+    tokenProtected.post("logout") { req async throws -> HTTPStatus in
+        // Get the authenticated user's token
+        let user = try req.auth.require(User.self)
+
+        // Find the token used for this request
+        // The token value is in the Authorization header
+        guard let bearerToken = req.headers.bearerAuthorization?.token else {
+            throw Abort(.unauthorized, reason: "No bearer token provided")
+        }
+
+        // Find and revoke the token
+        guard let token = try await UserToken.query(on: req.db)
+            .filter(\.$value == bearerToken)
+            .filter(\.$user.$id == user.requireID())
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Token not found")
+        }
+
+        token.isRevoked = true
+        try await token.update(on: req.db)
+
+        req.logger.info("User \(user.email) logged out, token revoked")
+
+        return .noContent
+    }
+
+    // Apple Sign In endpoint
+    app.post("auth", "apple") { req async throws -> UserToken in
+        // Decode the request
+        struct AppleLoginRequest: Content {
+            let identityToken: String  // JWT from Apple Sign In
+            let name: String?          // Only provided on first sign in
+        }
+
+        let request = try req.content.decode(AppleLoginRequest.self)
+
+        // Get Apple app bundle ID from environment
+        guard let appBundleID = Environment.get("APPLE_APP_ID") else {
+            req.logger.error("APPLE_APP_ID not configured in environment")
+            throw Abort(.internalServerError, reason: "Apple Sign In not properly configured")
+        }
+
+        // Verify Apple's identity token
+        let appleAuthService = AppleAuthService(app: req.application, client: req.client, logger: req.logger)
+        let appleToken = try await appleAuthService.verifyIdentityToken(
+            request.identityToken,
+            expectedAudience: appBundleID
+        )
+
+        // Check if user already exists by Apple user ID
+        let existingUser = try await User.query(on: req.db)
+            .filter(\.$appleUserId == appleToken.sub.value)
+            .first()
+
+        let user: User
+        if let existingUser = existingUser {
+            // User exists, use it
+            user = existingUser
+            req.logger.info("Existing Apple user logged in: \(appleToken.sub.value)")
+        } else {
+            // Create new user
+            let email = appleToken.email ?? "apple_\(appleToken.sub.value)@private.relay"
+            let name = request.name ?? "Apple User"
+
+            user = try User(
+                name: name,
+                email: email,
+                passwordHash: Bcrypt.hash(UUID().uuidString), // Random password, won't be used
+                appleUserId: appleToken.sub.value
+            )
+            try await user.save(on: req.db)
+            req.logger.info("New Apple user created: \(appleToken.sub.value)")
+        }
+
+        // Generate and return database token (same as password login)
+        let token = try user.generateToken()
+        try await token.save(on: req.db)
+
+        return token
+    }
 }

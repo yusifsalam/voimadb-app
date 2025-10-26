@@ -1,5 +1,6 @@
 import Fluent
 import FluentPostgresDriver
+import JWT
 import Vapor
 
 public func configure(_ app: Application) async throws {
@@ -13,6 +14,15 @@ public func configure(_ app: Application) async throws {
     )
     ), as: .psql)
 
+    // JWT Configuration
+    if let jwtSecret = Environment.get("JWT_SECRET") {
+        await app.jwt.keys.add(hmac: HMACKey(from: jwtSecret), digestAlgorithm: .sha256)
+    } else {
+        app.logger.warning("JWT_SECRET not set, using default (INSECURE)")
+        await app.jwt.keys.add(hmac: HMACKey(from: "secret"), digestAlgorithm: .sha256)
+    }
+
+    // Existing migrations
     app.migrations.add(CreateLifters())
     app.migrations.add(CreateAgeClass())
     app.migrations.add(CreateClubs())
