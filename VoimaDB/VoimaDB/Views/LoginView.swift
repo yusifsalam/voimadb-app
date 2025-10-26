@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct LoginView: View {
@@ -79,6 +80,32 @@ struct LoginView: View {
                 .disabled(email.isEmpty || password.isEmpty || isLoading)
                 .padding(.top, 10)
 
+                // Divider
+                HStack {
+                    VStack { Divider() }
+                    Text("or")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    VStack { Divider() }
+                }
+                .padding(.vertical, 10)
+
+                // Sign in with Apple button
+                SignInWithAppleButton(
+                    .signIn,
+                    onRequest: { request in
+                        request.requestedScopes = [.fullName, .email]
+                    },
+                    onCompletion: { result in
+                        Task {
+                            await handleAppleSignIn(result)
+                        }
+                    }
+                )
+                .frame(height: 50)
+                .cornerRadius(10)
+                .disabled(isLoading)
+
                 Button {
                     showingRegister = true
                 } label: {
@@ -108,6 +135,55 @@ struct LoginView: View {
         }
 
         isLoading = false
+    }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Extract credential from the authorization result
+            let authorization = try result.get()
+
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let identityTokenData = appleIDCredential.identityToken,
+                  let identityToken = String(data: identityTokenData, encoding: .utf8) else {
+                throw AppleSignInError.missingCredentials
+            }
+
+            // Get full name if available (only provided on first sign in)
+            let fullName: String? = {
+                guard let nameComponents = appleIDCredential.fullName else { return nil }
+                let formatter = PersonNameComponentsFormatter()
+                return formatter.string(from: nameComponents)
+            }()
+
+            // Sign in with Apple via backend
+            try await authManager.signInWithApple(
+                identityToken: identityToken,
+                name: fullName
+            )
+        } catch let error as ASAuthorizationError where error.code == .canceled {
+            // User cancelled, don't show error
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+}
+
+// MARK: - Apple Sign In Error
+
+enum AppleSignInError: LocalizedError {
+    case missingCredentials
+
+    var errorDescription: String? {
+        switch self {
+        case .missingCredentials:
+            return "Failed to get credentials from Apple"
+        }
     }
 }
 

@@ -48,6 +48,23 @@ class AuthManager {
         try await login(email: email, password: password)
     }
 
+    // MARK: - Sign in with Apple
+
+    func signInWithApple(identityToken: String, name: String?) async throws {
+        let userToken = try await AuthService.shared.signInWithApple(
+            identityToken: identityToken,
+            name: name
+        )
+
+        token = userToken.value
+
+        // Save token to UserDefaults
+        UserDefaults.standard.set(userToken.value, forKey: tokenKey)
+
+        // Fetch current user
+        await loadCurrentUser()
+    }
+
     // MARK: - Logout
 
     func logout() {

@@ -110,6 +110,43 @@ class AuthService {
         }
     }
 
+    // MARK: - Sign in with Apple
+
+    func signInWithApple(identityToken: String, name: String?) async throws -> UserToken {
+        guard let url = URL(string: "\(baseURL)/auth/apple") else {
+            throw AuthError.invalidURL
+        }
+
+        let appleSignInRequest = AppleSignInRequest(
+            identityToken: identityToken,
+            name: name
+        )
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(appleSignInRequest)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            return try decoder.decode(UserToken.self, from: data)
+        case 400, 401:
+            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
+               let reason = errorResponse["reason"] {
+                throw AuthError.serverError(reason)
+            }
+            throw AuthError.serverError("Apple Sign In failed")
+        default:
+            throw AuthError.serverError("Server error: \(httpResponse.statusCode)")
+        }
+    }
+
     // MARK: - Get Current User
 
     func getCurrentUser(token: String) async throws -> User {
@@ -136,4 +173,11 @@ class AuthService {
             throw AuthError.serverError("Server error: \(httpResponse.statusCode)")
         }
     }
+}
+
+// MARK: - Apple Sign In Request
+
+struct AppleSignInRequest: Codable {
+    let identityToken: String
+    let name: String?
 }
