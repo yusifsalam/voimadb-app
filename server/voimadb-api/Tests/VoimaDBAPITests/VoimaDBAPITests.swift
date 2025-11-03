@@ -1,9 +1,9 @@
-@testable import VaporApi
+@testable import VoimaDBAPI
 import VaporTesting
 import Testing
 
 @Suite("App Tests")
-struct VaporApiTests {
+struct VoimaDBAPITests {
     @Test("Test Hello World Route")
     func helloWorld() async throws {
         try await withApp(configure: configure) { app in

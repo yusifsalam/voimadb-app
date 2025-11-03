@@ -37,7 +37,7 @@ The application automatically runs migrations on startup via `app.autoMigrate()`
 
 ### Database Layer (Fluent ORM)
 
-**Models** (Sources/VaporApi/Models/):
+**Models** (Sources/VoimaDBAPI/Models/):
 - All models use custom integer IDs (`@ID(custom: .id, generatedBy: .database)`)
 - All models conform to `Model, Content, @unchecked Sendable`
 - Relationships use `@Parent`, `@OptionalParent`, and `@Children` property wrappers
@@ -56,7 +56,7 @@ The application automatically runs migrations on startup via `app.autoMigrate()`
 - `EventType`: "SBD" (powerlifting) | "B" (bench press)
 - `Equipment`: "Raw" | "SinglePly"
 
-**Migrations** (Sources/VaporApi/Migrations/):
+**Migrations** (Sources/VoimaDBAPI/Migrations/):
 - Migration order matters - referenced tables must be created first
 - Current order in configure.swift:16-22: Lifters → AgeClass → Clubs → Competitions → WeightClass → Results → TempResults
 

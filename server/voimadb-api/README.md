@@ -1,6 +1,6 @@
-# VaporApi
+# VoimaDB API
 
-💧 A project built with the Vapor web framework.
+💧 A REST API for VoimaDB built with the Vapor web framework.
 
 ## Getting Started
 

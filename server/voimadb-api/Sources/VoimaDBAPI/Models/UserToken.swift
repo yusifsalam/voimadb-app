@@ -2,7 +2,7 @@ import Fluent
 import Vapor
 
 final class UserToken: Model, Content, ModelTokenAuthenticatable, @unchecked Sendable {
-    typealias User = VaporApi.User
+    typealias User = VoimaDBAPI.User
     static let schema = "user_tokens"
     
     static var valueKey: KeyPath<UserToken, Field<String>> { \.$value }

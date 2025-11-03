@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "VaporApi",
+    name: "VoimaDBAPI",
     platforms: [
        .macOS(.v13)
     ],
@@ -20,7 +20,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "VaporApi",
+            name: "VoimaDBAPI",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Fluent", package: "fluent"),
@@ -32,9 +32,9 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "VaporApiTests",
+            name: "VoimaDBAPITests",
             dependencies: [
-                .target(name: "VaporApi"),
+                .target(name: "VoimaDBAPI"),
                 .product(name: "VaporTesting", package: "vapor"),
             ],
             swiftSettings: swiftSettings
