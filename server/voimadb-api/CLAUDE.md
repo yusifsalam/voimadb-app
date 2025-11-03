@@ -33,7 +33,7 @@ The application automatically runs migrations on startup via `app.autoMigrate()`
 ### Entry Point Flow
 1. **entrypoint.swift:6-30** - Application bootstrapping with async/await support
 2. **configure.swift:5-30** - Database configuration, migration registration, and route setup
-3. **routes.swift:4-96** - REST endpoint definitions
+3. **routes.swift** - Controller registration (delegates to individual controllers)
 
 ### Database Layer (Fluent ORM)
 
@@ -60,15 +60,25 @@ The application automatically runs migrations on startup via `app.autoMigrate()`
 - Migration order matters - referenced tables must be created first
 - Current order in configure.swift:16-22: Lifters → AgeClass → Clubs → Competitions → WeightClass → Results → TempResults
 
-### API Routes
+### Controllers (RouteCollection Pattern)
 
-All routes are prefixed with `/api`:
+**Controllers** (Sources/VoimaDBAPI/Controllers/):
+- All controllers conform to `RouteCollection` protocol
+- Controllers implement `boot(routes:)` to register their routes
+- Registered in routes.swift using `app.register(collection:)`
 
-**Route pattern**: `app.group("api", "<resource>") { ... }` for all endpoints
+**Available Controllers**:
+- `LifterController` - Lifter endpoints under `/api/lifters`
+- `CompetitionController` - Competition endpoints under `/api/competitions` (includes competition results)
+- `ClubController` - Club endpoints under `/api/clubs`
+- `ResultController` - Result endpoints under `/api/results`
+- `WeightClassController` - Weight class endpoints under `/api/weightclasses`
+- `AgeClassController` - Age class endpoints under `/api/ageclasses`
+- `AuthController` - Authentication endpoints (user registration, login, logout, Apple Sign In, "me")
 
 **Eager loading**: Results endpoints use `.with()` to eager-load related entities (lifter, competition, club) to avoid N+1 queries.
 
-**Example**: `/api/competitions/:id/results` (routes.swift:36-45) filters results by competition ID and eager-loads lifter and club relationships.
+**Example**: `CompetitionController.results()` fetches competition results and eager-loads lifter and club relationships.
 
 ## Database Configuration
 
