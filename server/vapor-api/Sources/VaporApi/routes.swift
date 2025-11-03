@@ -161,42 +161,32 @@ func routes(_ app: Application) throws {
 
         let request = try req.content.decode(AppleLoginRequest.self)
 
-        // Get Apple app bundle ID from environment
-        guard let appBundleID = Environment.get("APPLE_APP_ID") else {
-            req.logger.error("APPLE_APP_ID not configured in environment")
-            throw Abort(.internalServerError, reason: "Apple Sign In not properly configured")
-        }
-
-        // Verify Apple's identity token
-        let appleAuthService = AppleAuthService(app: req.application, client: req.client, logger: req.logger)
-        let appleToken = try await appleAuthService.verifyIdentityToken(
-            request.identityToken,
-            expectedAudience: appBundleID
-        )
+        // Verify Apple's identity token using Vapor's built-in helper
+        let appleToken = try await req.jwt.apple.verify(request.identityToken)
 
         // Check if user already exists by Apple user ID
         let existingUser = try await User.query(on: req.db)
-            .filter(\.$appleUserId == appleToken.sub.value)
+            .filter(\.$appleUserId == appleToken.subject.value)
             .first()
 
         let user: User
         if let existingUser = existingUser {
             // User exists, use it
             user = existingUser
-            req.logger.info("Existing Apple user logged in: \(appleToken.sub.value)")
+            req.logger.info("Existing Apple user logged in: \(appleToken.subject.value)")
         } else {
             // Create new user
-            let email = appleToken.email ?? "apple_\(appleToken.sub.value)@private.relay"
+            let email = appleToken.email ?? "apple_\(appleToken.subject.value)@private.relay"
             let name = request.name ?? "Apple User"
 
             user = try User(
                 name: name,
                 email: email,
                 passwordHash: Bcrypt.hash(UUID().uuidString), // Random password, won't be used
-                appleUserId: appleToken.sub.value
+                appleUserId: appleToken.subject.value
             )
             try await user.save(on: req.db)
-            req.logger.info("New Apple user created: \(appleToken.sub.value)")
+            req.logger.info("New Apple user created: \(appleToken.subject.value)")
         }
 
         // Generate and return database token (same as password login)

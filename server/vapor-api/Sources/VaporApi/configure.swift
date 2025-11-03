@@ -22,6 +22,11 @@ public func configure(_ app: Application) async throws {
         await app.jwt.keys.add(hmac: HMACKey(from: "secret"), digestAlgorithm: .sha256)
     }
 
+    // Apple Sign In Configuration
+    if let appleAppId = Environment.get("APPLE_APP_ID") {
+        app.jwt.apple.applicationIdentifier = appleAppId
+    }
+
     // Existing migrations
     app.migrations.add(CreateLifters())
     app.migrations.add(CreateAgeClass())
