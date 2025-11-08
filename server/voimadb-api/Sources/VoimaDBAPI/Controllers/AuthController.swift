@@ -1,5 +1,6 @@
 import Fluent
 import Vapor
+import VoimaDBShared
 
 struct AuthController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
@@ -19,9 +20,9 @@ struct AuthController: RouteCollection {
         routes.post("auth", "apple", use: appleSignIn)
     }
 
-    func register(req: Request) async throws -> User {
+    func register(req: Request) async throws -> UserResponse {
         try User.Create.validate(content: req)
-        let create = try req.content.decode(User.Create.self)
+        let create = try req.content.decode(UserRegistrationRequest.self)
         guard create.password == create.confirmPassword else {
             throw Abort(.badRequest, reason: "Passwords did not match")
         }
@@ -31,18 +32,19 @@ struct AuthController: RouteCollection {
             passwordHash: Bcrypt.hash(create.password)
         )
         try await user.save(on: req.db)
-        return user
+        return try user.toResponse()
     }
 
-    func login(req: Request) async throws -> UserToken {
+    func login(req: Request) async throws -> UserTokenResponse {
         let user = try req.auth.require(User.self)
         let token = try user.generateToken()
         try await token.save(on: req.db)
-        return token
+        return token.toResponse()
     }
 
-    func me(req: Request) throws -> User {
-        try req.auth.require(User.self)
+    func me(req: Request) throws -> UserResponse {
+        let user = try req.auth.require(User.self)
+        return try user.toResponse()
     }
 
     func logout(req: Request) async throws -> HTTPStatus {
@@ -68,13 +70,8 @@ struct AuthController: RouteCollection {
         return .noContent
     }
 
-    func appleSignIn(req: Request) async throws -> UserToken {
-        struct AppleLoginRequest: Content {
-            let identityToken: String
-            let name: String?
-        }
-
-        let request = try req.content.decode(AppleLoginRequest.self)
+    func appleSignIn(req: Request) async throws -> UserTokenResponse {
+        let request = try req.content.decode(AppleSignInRequest.self)
         let appleToken = try await req.jwt.apple.verify(request.identityToken)
 
         let existingUser = try await User.query(on: req.db)
@@ -102,6 +99,6 @@ struct AuthController: RouteCollection {
         let token = try user.generateToken()
         try await token.save(on: req.db)
 
-        return token
+        return token.toResponse()
     }
 }
