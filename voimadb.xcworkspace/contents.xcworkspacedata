@@ -8,6 +8,6 @@
       location = "group:server/voimadb-api">
    </FileRef>
    <FileRef
-      location = "group:VoimaDB/VoimaDB">
+      location = "group:VoimaDB/VoimaDB.xcodeproj">
    </FileRef>
 </Workspace>
