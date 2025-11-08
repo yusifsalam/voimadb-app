@@ -1,4 +1,5 @@
 import Foundation
+import VoimaDBShared
 
 enum AuthError: LocalizedError {
     case invalidURL
@@ -34,12 +35,12 @@ class AuthService {
 
     // MARK: - Register
 
-    func register(name: String, email: String, password: String, confirmPassword: String) async throws -> User {
+    func register(name: String, email: String, password: String, confirmPassword: String) async throws -> UserResponse {
         guard let url = URL(string: "\(baseURL)/users") else {
             throw AuthError.invalidURL
         }
 
-        let registration = UserRegistration(
+        let registration = UserRegistrationRequest(
             name: name,
             email: email,
             password: password,
@@ -59,11 +60,10 @@ class AuthService {
 
         switch httpResponse.statusCode {
         case 200:
-            return try decoder.decode(User.self, from: data)
+            return try decoder.decode(UserResponse.self, from: data)
         case 400:
-            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
-               let reason = errorResponse["reason"] {
-                throw AuthError.serverError(reason)
+            if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
+                throw AuthError.serverError(errorResponse.reason)
             }
             throw AuthError.serverError("Registration failed")
         default:
@@ -73,7 +73,7 @@ class AuthService {
 
     // MARK: - Login
 
-    func login(email: String, password: String) async throws -> UserToken {
+    func login(email: String, password: String) async throws -> UserTokenResponse {
         guard let url = URL(string: "\(baseURL)/login") else {
             throw AuthError.invalidURL
         }
@@ -86,23 +86,13 @@ class AuthService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // Debug: Print raw JSON response
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("Login response JSON: \(jsonString)")
-        }
-
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
-            do {
-                return try decoder.decode(UserToken.self, from: data)
-            } catch {
-                print("Decoding error: \(error)")
-                throw AuthError.serverError("Failed to decode response: \(error.localizedDescription)")
-            }
+            return try decoder.decode(UserTokenResponse.self, from: data)
         case 401:
             throw AuthError.unauthorized
         default:
@@ -112,7 +102,7 @@ class AuthService {
 
     // MARK: - Sign in with Apple
 
-    func signInWithApple(identityToken: String, name: String?) async throws -> UserToken {
+    func signInWithApple(identityToken: String, name: String?) async throws -> UserTokenResponse {
         guard let url = URL(string: "\(baseURL)/auth/apple") else {
             throw AuthError.invalidURL
         }
@@ -135,11 +125,10 @@ class AuthService {
 
         switch httpResponse.statusCode {
         case 200:
-            return try decoder.decode(UserToken.self, from: data)
+            return try decoder.decode(UserTokenResponse.self, from: data)
         case 400, 401:
-            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
-               let reason = errorResponse["reason"] {
-                throw AuthError.serverError(reason)
+            if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
+                throw AuthError.serverError(errorResponse.reason)
             }
             throw AuthError.serverError("Apple Sign In failed")
         default:
@@ -149,7 +138,7 @@ class AuthService {
 
     // MARK: - Get Current User
 
-    func getCurrentUser(token: String) async throws -> User {
+    func getCurrentUser(token: String) async throws -> UserResponse {
         guard let url = URL(string: "\(baseURL)/me") else {
             throw AuthError.invalidURL
         }
@@ -166,18 +155,11 @@ class AuthService {
 
         switch httpResponse.statusCode {
         case 200:
-            return try decoder.decode(User.self, from: data)
+            return try decoder.decode(UserResponse.self, from: data)
         case 401:
             throw AuthError.unauthorized
         default:
             throw AuthError.serverError("Server error: \(httpResponse.statusCode)")
         }
     }
-}
-
-// MARK: - Apple Sign In Request
-
-struct AppleSignInRequest: Codable {
-    let identityToken: String
-    let name: String?
 }

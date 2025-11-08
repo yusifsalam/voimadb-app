@@ -1,9 +1,10 @@
 import Foundation
 import SwiftUI
+import VoimaDBShared
 
 @Observable
 class AuthManager {
-    var currentUser: User?
+    var currentUser: UserResponse?
     var token: String?
     var isAuthenticated: Bool {
         token != nil && currentUser != nil

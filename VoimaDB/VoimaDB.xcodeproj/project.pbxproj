@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FEE2C9152EBF51E600C6508D /* VoimaDBShared in Frameworks */ = {isa = PBXBuildFile; productRef = FEE2C9142EBF51E600C6508D /* VoimaDBShared */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		FE6197DD2E5733B4007F2908 /* VoimaDB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoimaDB.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FEE2C9152EBF51E600C6508D /* VoimaDBShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = VoimaDB;
 			packageProductDependencies = (
+				FEE2C9142EBF51E600C6508D /* VoimaDBShared */,
 			);
 			productName = VoimaDB;
 			productReference = FE6197DD2E5733B4007F2908 /* VoimaDB.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = FE6197D42E5733B4007F2908;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FEE2C9132EBF51E600C6508D /* XCLocalSwiftPackageReference "../shared/VoimaDBShared" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FE6197DE2E5733B4007F2908 /* Products */;
 			projectDirPath = "";
@@ -332,6 +341,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FEE2C9132EBF51E600C6508D /* XCLocalSwiftPackageReference "../shared/VoimaDBShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../shared/VoimaDBShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FEE2C9142EBF51E600C6508D /* VoimaDBShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoimaDBShared;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FE6197D52E5733B4007F2908 /* Project object */;
 }

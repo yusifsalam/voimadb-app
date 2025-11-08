@@ -1,4 +1,5 @@
 import SwiftUI
+import VoimaDBShared
 
 struct HomeView: View {
     @Environment(AuthManager.self) private var authManager
@@ -48,12 +49,10 @@ struct HomeView: View {
 
 #Preview {
     let authManager = AuthManager()
-    authManager.currentUser = User(
+    authManager.currentUser = UserResponse(
         id: UUID(),
         name: "John Doe",
-        email: "john@example.com",
-        createdAt: Date(),
-        updatedAt: Date()
+        email: "john@example.com"
     )
     return HomeView()
         .environment(authManager)
